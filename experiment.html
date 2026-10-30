@@ -55,7 +55,9 @@ h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08
 .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
 .side { display: grid; gap: 20px; }
 canvas { display: block; width: 100%; }
-#apparatus { height: 520px; }
+#apparatus { height: 520px; touch-action: none; }
+#apparatus.grab { cursor: grab; }
+#apparatus.grabbing { cursor: grabbing; }
 #plot { height: 360px; }
 .ctl { display: grid; gap: 4px; }
 .ctl label { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 500; }
@@ -135,7 +137,7 @@ td button { padding: 2px 8px; font-size: 12px; }
       <div class="head-row"><h3>Angle θ against time</h3><span id="decayInfo" class="note"></span></div>
       <canvas id="decay" aria-label="Angle theta against time since release, with amplitude envelope"></canvas>
       <div class="row note"><span><span style="display:inline-block;width:16px;height:3px;background:var(--signal);vertical-align:middle"></span> θ(t)</span><span><span style="display:inline-block;width:16px;height:0;border-top:2px dashed var(--muted);vertical-align:middle"></span> amplitude envelope (turning points)</span></div>
-      <p class="note">The dashed line under the pivot is the <strong>timing mark</strong>. Start and stop the watch as the bob crosses it, always moving in the same direction. The current amplitude in the corner comes from the protractor.</p>
+      <p class="note"><strong>Drag the bob</strong> with the mouse (or a finger) to choose the release angle on either side, then press Release. <strong>Pause here</strong> (key <span class="kbd">P</span>) freezes the bob, the graph and the stopwatch at that instant. The dashed line under the pivot is the <strong>timing mark</strong>. Start and stop the watch as the bob crosses it, always moving in the same direction. The current amplitude in the corner comes from the protractor.</p>
     </section>
 
     <div class="side">
@@ -174,6 +176,7 @@ td button { padding: 2px 8px; font-size: 12px; }
         <p class="note">Damping: air drag ∝ v² (stronger for light bobs) plus linear friction b·θ̇. Set both to 0 for an ideal pendulum.</p>
         <div class="row">
           <button id="release" class="primary" type="button">Release bob</button>
+          <button id="pause" type="button" aria-pressed="false">Pause here</button>
           <button id="catch" type="button">Stop and hold at θ₀</button>
         </div>
       </section>
@@ -189,7 +192,7 @@ td button { padding: 2px 8px; font-size: 12px; }
           <button id="swCountBtn" class="big" type="button">+1 swing</button>
           <button id="swReset" class="big" type="button">Reset</button>
         </div>
-        <p class="note">Keyboard: <span class="kbd">Enter</span> start/stop · <span class="kbd">Space</span> +1 swing · <span class="kbd">R</span> reset</p>
+        <p class="note">Keyboard: <span class="kbd">Enter</span> start/stop · <span class="kbd">Space</span> +1 swing · <span class="kbd">R</span> reset · <span class="kbd">P</span> pause/resume</p>
         <ol class="steps">
           <li>Release the bob and let it settle for a few swings.</li>
           <li>Start the watch as the bob crosses the mark.</li>
@@ -303,8 +306,8 @@ td button { padding: 2px 8px; font-size: 12px; }
   }
 
   // ---------- State ----------
-  const P = { L: 1.0, D: 2.5, mat: 'steel', amp: 10, air: 20, b: 0.05 };
-  const S = { t: 0, th: 10 * DEG, w: 0, swinging: false, hist: [], maxAbs: 0, ampRead: 0, trail: [], relT: 0, peaks: [] };
+  const P = { L: 1.0, D: 2.5, mat: 'steel', amp: 10, side: 1, air: 20, b: 0.05 };
+  const S = { t: 0, th: 10 * DEG, w: 0, swinging: false, paused: false, dragging: false, hist: [], maxAbs: 0, ampRead: 0, trail: [], relT: 0, peaks: [] };
   const SW = { running: false, start: 0, elapsed: 0, count: 0 };
   let rows = [];
   let nextId = 1;
@@ -337,6 +340,7 @@ td button { padding: 2px 8px; font-size: 12px; }
   const MONO = '12px "IBM Plex Mono", ui-monospace, monospace';
 
   // ---------- Apparatus ----------
+  const GEO = { px: 0, py: 0, d: 1, rb: 5 };
   function drawApparatus() {
     const [ctx, w, h] = fit($('apparatus'));
     ctx.clearRect(0, 0, w, h);
@@ -344,6 +348,7 @@ td button { padding: 2px 8px; font-size: 12px; }
     const scale = (h - py - 40) / 2.08;          // pixels per metre (2 m string fits)
     const M = model(P.L, P.D, P.mat);
     const d = M.d * scale, rb = Math.max(4, M.r * scale);
+    GEO.px = px; GEO.py = py; GEO.d = d; GEO.rb = rb;
 
     // Support beam
     ctx.fillStyle = C.rule; ctx.fillRect(px - 90, py - 14, 180, 10);
@@ -404,7 +409,18 @@ td button { padding: 2px 8px; font-size: 12px; }
 
     // Readings
     ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillStyle = C.muted; ctx.font = MONO;
-    ctx.fillText(S.swinging ? 'amplitude ≈ ' + S.ampRead.toFixed(1) + '°' : 'held at θ₀ = ' + P.amp + '°', w - 8, 8);
+    ctx.fillText(S.paused ? 'PAUSED at θ = ' + (S.th / DEG).toFixed(1) + '°' : S.swinging ? 'amplitude ≈ ' + S.ampRead.toFixed(1) + '°' : 'held at θ₀ = ' + (P.side * P.amp).toFixed(1) + '°', w - 8, 8);
+    if (!S.swinging || S.paused) {
+      // Angle arc from the vertical to the bob
+      ctx.save();
+      const ar = Math.min(d * 0.45, 120), a = S.th;
+      ctx.strokeStyle = C.signal; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(px, py, ar, Math.PI / 2 - Math.max(a, 0), Math.PI / 2 - Math.min(a, 0)); ctx.stroke();
+      ctx.fillStyle = C.signal; ctx.font = '600 13px "IBM Plex Mono", ui-monospace, monospace';
+      ctx.textAlign = a >= 0 ? 'left' : 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText((S.paused ? 'θ = ' : 'θ₀ = ') + (a / DEG).toFixed(1) + '°', px + Math.sin(a / 2) * (ar + 10) + (a >= 0 ? 4 : -4), py + Math.cos(a / 2) * (ar + 10));
+      ctx.restore();
+    }
     ctx.fillText('bob m = ' + fmtMass(M.m), w - 8, 24);
     ctx.fillText('pivot→centre = ' + M.d.toFixed(3) + ' m', w - 8, 40);
   }
@@ -427,6 +443,7 @@ td button { padding: 2px 8px; font-size: 12px; }
     if (e.code === 'Space') { e.preventDefault(); swCount(); }
     else if (e.key === 'Enter') { e.preventDefault(); swToggle(); }
     else if (e.key === 'r' || e.key === 'R') { swReset(); }
+    else if (e.key === 'p' || e.key === 'P') { togglePause(); }
   });
 
   function msg(text, kind) { const el = $('recMsg'); el.textContent = text; el.className = 'status ' + (kind || ''); }
@@ -445,7 +462,10 @@ td button { padding: 2px 8px; font-size: 12px; }
     $('massOut').textContent = 'm = ' + fmtMass(model(P.L, P.D, P.mat).m);
   }
   // Before release the bob is held still at the chosen release angle θ₀.
-  function catchBob() { S.swinging = false; S.th = P.amp * DEG; S.w = 0; S.trail = []; }
+  function catchBob() { S.swinging = false; S.paused = false; syncPause(); S.th = P.side * P.amp * DEG; S.w = 0; S.trail = []; }
+  function syncPause() { const b = $('pause'); b.textContent = S.paused ? 'Resume' : 'Pause here'; b.setAttribute('aria-pressed', S.paused); b.classList.toggle('primary', S.paused); }
+  function togglePause() { if (!S.swinging) return; S.paused = !S.paused; syncPause(); }
+  const SETTERS = {};
   // Slider + number box pairs: either one can be used; the number box is clamped to the slider's range.
   const PAIRS = [
     { key: 'L', s: 'len', n: 'lenN', dec: 3, reset: true },
@@ -466,16 +486,47 @@ td button { padding: 2px 8px; font-size: 12px; }
       if (pr.reset || (pr.key === 'amp' && !S.swinging)) catchBob();
       syncLabels();
     };
+    SETTERS[pr.key] = v => apply(v, 'x');
     sl.addEventListener('input', () => apply(+sl.value, 's'));
     nb.addEventListener('change', () => { apply(parseFloat(nb.value), 'x'); });
     nb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(parseFloat(nb.value), 'x'); nb.blur(); } });
   });
   $('mat').addEventListener('change', e => { P.mat = e.target.value; catchBob(); syncLabels(); });
   $('release').addEventListener('click', () => {
-    S.th = P.amp * DEG; S.w = 0; S.swinging = true; S.maxAbs = 0; S.ampRead = P.amp; S.trail = [];
-    S.relT = 0; S.peaks = [[0, S.ampRead]]; S.hist = [[0, P.amp]];
+    S.th = P.side * P.amp * DEG; S.w = 0; S.swinging = true; S.paused = false; syncPause(); S.maxAbs = 0; S.ampRead = P.amp; S.trail = [];
+    S.relT = 0; S.peaks = [[0, S.ampRead]]; S.hist = [[0, P.side * P.amp]];
   });
   $('catch').addEventListener('click', catchBob);
+  $('pause').addEventListener('click', togglePause);
+
+  // ---------- Drag the bob to set θ₀ ----------
+  const cvA = $('apparatus');
+  function canvasXY(e) { const r = cvA.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  function nearBob(x, y) {
+    const bx = GEO.px + Math.sin(S.th) * GEO.d, by = GEO.py + Math.cos(S.th) * GEO.d;
+    return Math.hypot(x - bx, y - by) <= GEO.rb + 16;
+  }
+  function dragTo(x, y) {
+    let a = Math.atan2(x - GEO.px, y - GEO.py) / DEG;            // angle from the downward vertical
+    const mag = Math.min(80, Math.max(2, Math.round(Math.abs(a) * 2) / 2));
+    P.side = a < 0 ? -1 : 1;
+    SETTERS.amp(mag);                                              // updates slider, number box and held bob
+  }
+  cvA.addEventListener('pointerdown', e => {
+    const [x, y] = canvasXY(e);
+    if (!nearBob(x, y)) return;
+    e.preventDefault();
+    S.dragging = true; cvA.setPointerCapture(e.pointerId); cvA.classList.add('grabbing');
+    catchBob(); dragTo(x, y);
+  });
+  cvA.addEventListener('pointermove', e => {
+    const [x, y] = canvasXY(e);
+    if (S.dragging) { dragTo(x, y); return; }
+    cvA.classList.toggle('grab', nearBob(x, y));
+  });
+  const endDrag = e => { if (!S.dragging) return; S.dragging = false; cvA.classList.remove('grabbing'); try { cvA.releasePointerCapture(e.pointerId); } catch (_) {} };
+  cvA.addEventListener('pointerup', endDrag);
+  cvA.addEventListener('pointercancel', endDrag);
 
   // ---------- Simulated student ----------
   function simulatedTrial(L, D, mat, amp, N, mistakes, air, b) {
@@ -728,9 +779,9 @@ td button { padding: 2px 8px; font-size: 12px; }
     for (let t = Math.ceil(t0 / 5) * 5; t <= t1 + 1e-9; t += 5) { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(X(t), Tm); ctx.lineTo(X(t), Tm + ph); ctx.stroke(); ctx.fillText(t + ' s', X(t), Tm + ph + 5); }
     if (!S.swinging) {
       // Held at θ₀: show the starting point
-      ctx.fillStyle = C.signal; ctx.beginPath(); ctx.arc(X(0), Y(P.amp), 4, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = C.signal; ctx.beginPath(); ctx.arc(X(0), Y(P.side * P.amp), 4, 0, 2 * Math.PI); ctx.fill();
       ctx.fillStyle = C.muted; ctx.textBaseline = 'middle';
-      ctx.fillText(`Bob held at θ₀ = ${P.amp}°. Press “Release bob” to start.`, Lm + pw / 2, Tm + ph / 2 + 18);
+      ctx.fillText(`Bob held at θ₀ = ${(P.side * P.amp).toFixed(1)}°. Drag it or press “Release bob”.`, Lm + pw / 2, Tm + ph / 2 + 18);
       $('decayInfo').textContent = ''; return;
     }
     ctx.save(); ctx.beginPath(); ctx.rect(Lm, Tm, pw, ph); ctx.clip();
@@ -759,7 +810,7 @@ td button { padding: 2px 8px; font-size: 12px; }
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (S.swinging) {
+    if (S.swinging && !S.paused) {
       const M = model(P.L, P.D, P.mat), acc = makeAcc(M, P.air, P.b);
       const n = Math.max(1, Math.ceil(dt / 0.0005));
       let prev = S.w;
@@ -775,7 +826,7 @@ td button { padding: 2px 8px; font-size: 12px; }
       S.hist.push([S.relT, S.th / DEG]);
       while (S.hist.length && S.hist[0][0] < S.relT - TWIN - 2) S.hist.shift();
     }
-    S.t += dt;
+    if (!S.paused) S.t += dt;   // pausing freezes the stopwatch too
     $('swTime').textContent = swNow().toFixed(2);
     $('swCount').textContent = SW.count;
     drawApparatus();
