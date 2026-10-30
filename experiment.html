@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pendulum Experiment Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout: lab bench. Apparatus left, stopwatch and setup right; data table then analysis below. */
+  --paper: #f3f5f7;
+  --panel: #ffffff;
+  --ink: #17212b;
+  --muted: #5b6874;
+  --grid: #dde3e9;
+  --rule: #c9d2da;
+  --signal: #d9480f;
+  --ref: #3b6ea8;
+  --good: #2b8a3e;
+  --lcd: #e9efe6;
+  --lcd-ink: #1f2a1c;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #11161c; --panel: #182029; --ink: #e4e9ee; --muted: #93a1ae;
+    --grid: #232d38; --rule: #2f3b48; --signal: #ff8a4c; --ref: #7fb0e8;
+    --good: #69db7c; --lcd: #1d2a20; --lcd-ink: #b8f0c0; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #11161c; --panel: #182029; --ink: #e4e9ee; --muted: #93a1ae;
+  --grid: #232d38; --rule: #2f3b48; --signal: #ff8a4c; --ref: #7fb0e8;
+  --good: #69db7c; --lcd: #1d2a20; --lcd-ink: #b8f0c0; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 48px; display: grid; gap: 20px; }
+header { display: grid; gap: 4px; }
+h1, h2 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; }
+h2 { font-size: 20px; }
+h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.lede { color: var(--muted); max-width: 75ch; margin: 0; }
+.note { font-size: 13px; color: var(--muted); margin: 0; max-width: 85ch; }
+.bench { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.side { display: grid; gap: 20px; }
+canvas { display: block; width: 100%; }
+#apparatus { height: 520px; }
+#plot { height: 360px; }
+.ctl { display: grid; gap: 4px; }
+.ctl label { display: flex; justify-content: space-between; font-size: 13.5px; font-weight: 500; }
+.ctl output { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--signal); font-weight: 500; }
+input[type="range"] { width: 100%; accent-color: var(--signal); }
+select, input[type="number"] {
+  font: 14px var(--font-body); color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px;
+}
+input[type="number"] { width: 72px; font-family: var(--font-mono); }
+.pair { display: grid; grid-template-columns: 1fr 88px; gap: 10px; align-items: center; }
+.pair input[type="number"] { width: 100%; text-align: right; }
+.ctl .unit { font-weight: 400; color: var(--muted); }
+#decay { height: 150px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: 500 14px var(--font-body); color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 7px 14px; cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
+button.big { padding: 12px 10px; font-size: 15px; font-weight: 600; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ref); outline-offset: 2px; }
+.lcd {
+  background: var(--lcd); color: var(--lcd-ink); border-radius: 6px; padding: 10px 14px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 4px 12px;
+}
+.lcd .time { font-size: 40px; font-weight: 600; line-height: 1; }
+.lcd .cnt { font-size: 28px; font-weight: 600; line-height: 1; text-align: right; }
+.lcd .lab { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; }
+.sw-btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.kbd { font-family: var(--font-mono); font-size: 11.5px; border: 1px solid var(--rule); border-radius: 4px; padding: 0 5px; }
+.steps { margin: 0; padding-left: 20px; font-size: 13.5px; color: var(--muted); display: grid; gap: 2px; }
+.status { font-size: 13px; min-height: 1.5em; }
+.status.ok { color: var(--good); }
+.status.warn { color: var(--signal); }
+.tablewrap { overflow-x: auto; max-height: 420px; overflow-y: auto; border: 1px solid var(--grid); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { font-weight: 600; color: var(--muted); font-size: 12px; position: sticky; top: 0; background: var(--panel); }
+td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td.l, th.l { text-align: left; }
+td .tag { font-family: var(--font-body); font-size: 11.5px; color: var(--muted); }
+tr.off td { opacity: 0.4; }
+td button { padding: 2px 8px; font-size: 12px; }
+.head-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; padding: 12px; background: var(--paper); border-radius: 6px; }
+.toolbar .grp { display: grid; gap: 4px; }
+.toolbar .grp > span { font-size: 12px; color: var(--muted); font-weight: 500; }
+.fit { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.tile { border: 1px solid var(--grid); border-radius: 6px; padding: 8px 12px; }
+.tile .k { font-size: 12px; color: var(--muted); }
+.tile .v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 500; }
+.interp { border-left: 3px solid var(--ref); padding: 8px 12px; background: var(--paper); border-radius: 0 6px 6px 0; font-size: 14px; }
+.interp p { margin: 0 0 4px; }
+.interp p:last-child { margin: 0; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+@media (max-width: 900px) {
+  .bench { grid-template-columns: 1fr; }
+  #apparatus { height: 420px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Pendulum Experiment Bench</h1>
+    <p class="lede">A virtual lab pendulum with the imperfections of a real one. The bob is a sphere of real size, so the pendulum is longer than the string. Air drag and pivot friction make the swing die away (you can set how strongly), your release angle is off by about ±1°, and the stopwatch is timed by your own clicks. Time the swings, record each trial, then plot any two quantities and fit a line.</p>
+    <nav class="note"><a href="index.html">Home</a> · <a href="lab.html">← Ideal pendulum &amp; elliptic integral</a></nav>
+  </header>
+
+  <div class="bench">
+    <section class="card" aria-label="Apparatus">
+      <canvas id="apparatus" aria-label="Pendulum with protractor, ruler and timing mark"></canvas>
+      <div class="head-row"><h3>Amplitude since release</h3><span id="decayInfo" class="note"></span></div>
+      <canvas id="decay" aria-label="Amplitude against time since release"></canvas>
+      <p class="note">The dashed line under the pivot is the <strong>timing mark</strong>. Start and stop the watch as the bob crosses it, always moving in the same direction. The current amplitude in the corner comes from the protractor.</p>
+    </section>
+
+    <div class="side">
+      <section class="card" aria-label="Apparatus setup">
+        <h3>Set up the apparatus</h3>
+        <div class="ctl">
+          <label for="lenN">String length L <span class="unit">(m, 0.1–2.0)</span></label>
+          <div class="pair"><input id="len" type="range" min="0.1" max="2" step="0.005" value="1" aria-label="String length slider"><input id="lenN" type="number" min="0.1" max="2" step="0.001" value="1.000"></div>
+        </div>
+        <div class="ctl">
+          <label for="diaN">Bob diameter D <span class="unit">(cm, 1–6)</span></label>
+          <div class="pair"><input id="dia" type="range" min="1" max="6" step="0.1" value="2.5" aria-label="Bob diameter slider"><input id="diaN" type="number" min="1" max="6" step="0.1" value="2.5"></div>
+        </div>
+        <div class="ctl">
+          <label for="mat">Bob material <output id="massOut"></output></label>
+          <select id="mat">
+            <option value="wood">Wood (700 kg/m³)</option>
+            <option value="aluminium">Aluminium (2700 kg/m³)</option>
+            <option value="steel" selected>Steel (7850 kg/m³)</option>
+            <option value="brass">Brass (8500 kg/m³)</option>
+            <option value="lead">Lead (11340 kg/m³)</option>
+          </select>
+        </div>
+        <div class="ctl">
+          <label for="ampN">Release angle θ₀ <span class="unit">(°, 2–80)</span></label>
+          <div class="pair"><input id="amp" type="range" min="2" max="80" step="0.5" value="10" aria-label="Release angle slider"><input id="ampN" type="number" min="2" max="80" step="0.5" value="10"></div>
+        </div>
+        <div class="ctl">
+          <label for="airN">Air drag factor <span class="unit">(× real air, 0–100)</span></label>
+          <div class="pair"><input id="air" type="range" min="0" max="100" step="1" value="20" aria-label="Air drag factor slider"><input id="airN" type="number" min="0" max="100" step="1" value="20"></div>
+        </div>
+        <div class="ctl">
+          <label for="fricN">Pivot friction b <span class="unit">(s⁻¹, 0–0.5)</span></label>
+          <div class="pair"><input id="fric" type="range" min="0" max="0.5" step="0.005" value="0.05" aria-label="Pivot friction slider"><input id="fricN" type="number" min="0" max="0.5" step="0.005" value="0.05"></div>
+        </div>
+        <p class="note">Damping: air drag ∝ v² (stronger for light bobs) plus linear friction b·θ̇. Set both to 0 for an ideal pendulum.</p>
+        <div class="row">
+          <button id="release" class="primary" type="button">Release bob</button>
+          <button id="catch" type="button">Stop the bob</button>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Stopwatch">
+        <h3>Stopwatch and counter</h3>
+        <div class="lcd" aria-live="off">
+          <span class="lab">time (s)</span><span class="lab">oscillations</span>
+          <span class="time" id="swTime">0.00</span><span class="cnt" id="swCount">0</span>
+        </div>
+        <div class="sw-btns">
+          <button id="swStart" class="big primary" type="button">Start</button>
+          <button id="swCountBtn" class="big" type="button">+1 swing</button>
+          <button id="swReset" class="big" type="button">Reset</button>
+        </div>
+        <p class="note">Keyboard: <span class="kbd">Enter</span> start/stop · <span class="kbd">Space</span> +1 swing · <span class="kbd">R</span> reset</p>
+        <ol class="steps">
+          <li>Release the bob and let it settle for a few swings.</li>
+          <li>Start the watch as the bob crosses the mark.</li>
+          <li>Press +1 each time it returns to the mark moving the same way.</li>
+          <li>Stop on the last count (10–20 swings works well).</li>
+        </ol>
+        <button id="record" type="button" class="primary">Record this trial</button>
+        <div id="recMsg" class="status" role="status"></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="card" aria-label="Data">
+    <div class="head-row">
+      <h2>Data table</h2>
+      <div class="row">
+        <button id="copyCsv" type="button">Copy as CSV</button>
+        <button id="clearAll" type="button">Clear all</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="grp"><span>Oscillations per trial</span><input id="qN" type="number" min="1" max="50" value="10"></div>
+      <div class="grp"><span>&nbsp;</span><button id="quick" type="button">Quick trial (simulated student)</button></div>
+      <div class="grp"><span>Run a series, varying</span>
+        <select id="seriesVar">
+          <option value="L">String length L (0.2–1.6 m)</option>
+          <option value="amp">Release angle θ₀ (5–80°)</option>
+          <option value="mat">Bob material (5 kinds)</option>
+          <option value="D">Bob diameter D (1–6 cm)</option>
+          <option value="b">Pivot friction b (0–0.5 s⁻¹)</option>
+          <option value="air">Air drag factor (0–100×)</option>
+        </select>
+      </div>
+      <div class="grp"><span>Trials per value</span><input id="qRep" type="number" min="1" max="5" value="2"></div>
+      <div class="grp"><span>&nbsp;</span><button id="series" type="button">Run series</button></div>
+      <label class="check" for="mistakes"><input id="mistakes" type="checkbox"> Include occasional miscounts</label>
+    </div>
+    <p class="note">In a quick trial, a simulated student times the swings for you. Their reaction lag is about 0.15 s ± 0.05 s at start and 0.12 s ± 0.06 s at stop. The series uses your current setup and changes only the chosen quantity. Running a series unticks earlier rows, so the fit uses only the new series. Tick or untick “Use” to choose which rows go into the fit.</p>
+    <p id="sampleNote" class="note" hidden><strong>Sample data:</strong> these first rows are an example L-series. Press “Clear all” to start your own.</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th class="l">Use</th><th>#</th><th>L (m)</th><th>D (cm)</th><th class="l">Material</th><th>m (g)</th><th>θ₀ (°)</th><th>Air ×</th><th>b (s⁻¹)</th><th>N</th><th>t (s)</th><th>T = t/N (s)</th><th class="l">Source</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Analysis">
+    <h2>Analysis: plot and fit</h2>
+    <div class="toolbar">
+      <div class="grp"><span>Vertical axis (y)</span><select id="ySel"></select></div>
+      <div class="grp"><span>Horizontal axis (x)</span><select id="xSel"></select></div>
+      <label class="check" for="origin"><input id="origin" type="checkbox"> Force line through origin</label>
+      <div class="grp"><span>Quick choices</span>
+        <div class="row">
+          <button type="button" data-xy="L,T2">T² vs L</button>
+          <button type="button" data-xy="lnL,lnT">ln T vs ln L</button>
+          <button type="button" data-xy="th2,T">T vs θ₀²</button>
+          <button type="button" data-xy="m,T">T vs m</button>
+        </div>
+      </div>
+    </div>
+    <canvas id="plot" aria-label="Scatter plot with best-fit line"></canvas>
+    <div class="fit" id="fitTiles"></div>
+    <div class="interp" id="interp"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const DEG = Math.PI / 180;
+  const G = 9.81, RHO_AIR = 1.2, CD = 0.47, PIVOT_C = 5e-5;
+  const DENS = { wood: 700, aluminium: 2700, steel: 7850, brass: 8500, lead: 11340 };
+  const MAT_NAME = { wood: 'Wood', aluminium: 'Aluminium', steel: 'Steel', brass: 'Brass', lead: 'Lead' };
+
+  const randn = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+
+  // ---------- Physics: physical pendulum (sphere on a massless string) with air drag and pivot friction ----------
+  function model(L, Dcm, mat) {
+    const r = Dcm / 200, d = L + r;
+    const m = DENS[mat] * 4 / 3 * Math.PI * r ** 3;
+    const I = m * (d * d + 0.4 * r * r);
+    const kq = 0.5 * RHO_AIR * CD * Math.PI * r * r * d ** 3 / I;
+    return { r, d, m, I, a: m * G * d / I, kq, c: PIVOT_C / I };
+  }
+  function makeAcc(M, air, b) { const q = M.kq * air, c = M.c + b; return (th, w) => -M.a * Math.sin(th) - q * w * Math.abs(w) - c * w; }
+  function rk4(th, w, h, acc) {
+    const k1t = w, k1w = acc(th, w);
+    const k2t = w + h / 2 * k1w, k2w = acc(th + h / 2 * k1t, w + h / 2 * k1w);
+    const k3t = w + h / 2 * k2w, k3w = acc(th + h / 2 * k2t, w + h / 2 * k2w);
+    const k4t = w + h * k3w, k4w = acc(th + h * k3t, w + h * k3w);
+    return [th + h / 6 * (k1t + 2 * k2t + 2 * k3t + k4t), w + h / 6 * (k1w + 2 * k2w + 2 * k3w + k4w)];
+  }
+  // True time for N oscillations, timed from the 1st upward pass through the lowest point.
+  function trueTime(N, L, D, mat, th0, air, b) {
+    const M = model(L, D, mat), acc = makeAcc(M, air, b);
+    const h = 2 * Math.PI / Math.sqrt(M.a) / 1500;
+    let th = th0, w = 0, t = 0, first = null, n = 0;
+    for (let i = 0; i < 5e6; i++) {
+      const [nt, nw] = rk4(th, w, h, acc);
+      if (th < 0 && nt >= 0) {
+        const tc = t + h * (-th) / (nt - th);
+        if (first === null) first = tc; else if (++n === N) return tc - first;
+      }
+      th = nt; w = nw; t += h;
+    }
+    return NaN;
+  }
+
+  // ---------- State ----------
+  const P = { L: 1.0, D: 2.5, mat: 'steel', amp: 10, air: 20, b: 0.05 };
+  const S = { t: 0, th: 0, w: 0, swinging: false, maxAbs: 0, ampRead: 0, trail: [], relT: 0, peaks: [] };
+  const SW = { running: false, start: 0, elapsed: 0, count: 0 };
+  let rows = [];
+  let nextId = 1;
+
+  // ---------- Persistence (per-viewer convenience) ----------
+  const KEY = 'pendulum-bench-v2';
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ rows, nextId })); } catch (e) {} }
+  function load() {
+    try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o && Array.isArray(o.rows)) { rows = o.rows; nextId = o.nextId || rows.length + 1; return true; } } catch (e) {}
+    return false;
+  }
+
+  // ---------- Colors ----------
+  let C = {};
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    ['paper', 'panel', 'ink', 'muted', 'grid', 'rule', 'signal', 'ref', 'good'].forEach(k => C[k] = cs.getPropertyValue('--' + k).trim());
+  }
+  readColors();
+  const redrawAll = () => { readColors(); drawPlot(); };
+  new MutationObserver(redrawAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', redrawAll);
+  function fit(cv) {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return [ctx, r.width, r.height];
+  }
+  const MONO = '12px "IBM Plex Mono", ui-monospace, monospace';
+
+  // ---------- Apparatus ----------
+  function drawApparatus() {
+    const [ctx, w, h] = fit($('apparatus'));
+    ctx.clearRect(0, 0, w, h);
+    const px = w / 2, py = 34;
+    const scale = (h - py - 40) / 2.08;          // pixels per metre (2 m string fits)
+    const M = model(P.L, P.D, P.mat);
+    const d = M.d * scale, rb = Math.max(4, M.r * scale);
+
+    // Support beam
+    ctx.fillStyle = C.rule; ctx.fillRect(px - 90, py - 14, 180, 10);
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1;
+    for (let x = px - 86; x < px + 90; x += 10) { ctx.beginPath(); ctx.moveTo(x, py - 14); ctx.lineTo(x - 6, py - 22); ctx.stroke(); }
+
+    // Ruler on the left
+    const rx = 36;
+    ctx.strokeStyle = C.rule; ctx.beginPath(); ctx.moveTo(rx, py); ctx.lineTo(rx, py + 2 * scale); ctx.stroke();
+    ctx.font = MONO; ctx.fillStyle = C.muted; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (let cm = 0; cm <= 200; cm += 5) {
+      const y = py + cm / 100 * scale, big = cm % 50 === 0, mid = cm % 10 === 0;
+      ctx.strokeStyle = big ? C.muted : C.rule;
+      ctx.beginPath(); ctx.moveTo(rx, y); ctx.lineTo(rx + (big ? 12 : mid ? 7 : 4), y); ctx.stroke();
+      if (big) ctx.fillText((cm / 100).toFixed(1) + ' m', rx + 15, y);
+    }
+    // String-length marker on the ruler
+    const ly = py + P.L * scale;
+    ctx.strokeStyle = C.signal; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(rx, ly); ctx.lineTo(px - 20, ly); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = C.signal; ctx.textAlign = 'left';
+    ctx.fillText('L = ' + P.L.toFixed(3) + ' m', rx + 70, ly - 10);
+
+    // Timing mark
+    ctx.strokeStyle = C.ref; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);
+    ctx.beginPath(); ctx.moveTo(px, py + d - rb - 30); ctx.lineTo(px, Math.min(h - 6, py + d + rb + 30)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = C.ref; ctx.textAlign = 'left'; ctx.fillText('timing mark', px + 8, Math.min(h - 14, py + d + rb + 22));
+
+    // Protractor at pivot
+    const pr = 70;
+    ctx.strokeStyle = C.rule; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(px, py, pr, 0, Math.PI); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.textAlign = 'center';
+    for (let a = -90; a <= 90; a += 5) {
+      const big = a % 30 === 0, rr = big ? 10 : a % 10 === 0 ? 6 : 3;
+      const s = Math.sin(a * DEG), c = Math.cos(a * DEG);
+      ctx.beginPath(); ctx.moveTo(px + s * pr, py + c * pr); ctx.lineTo(px + s * (pr - rr), py + c * (pr - rr)); ctx.stroke();
+      if (big && a !== 0) ctx.fillText(Math.abs(a) + '°', px + s * (pr + 14), py + c * (pr + 14));
+    }
+
+    // Bob, string and trail
+    const bx = px + Math.sin(S.th) * d, by = py + Math.cos(S.th) * d;
+    S.trail.push(S.th); if (S.trail.length > 30) S.trail.shift();
+    const tp = a => [px + Math.sin(a) * d, py + Math.cos(a) * d];
+    ctx.strokeStyle = C.signal; ctx.lineWidth = 2;
+    for (let i = 1; i < S.trail.length; i++) {
+      ctx.globalAlpha = i / S.trail.length * 0.3;
+      ctx.beginPath(); ctx.moveTo(...tp(S.trail[i - 1])); ctx.lineTo(...tp(S.trail[i])); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    const sx = px + Math.sin(S.th) * (d - rb), sy = py + Math.cos(S.th) * (d - rb);
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(sx, sy); ctx.stroke();
+    const grad = ctx.createRadialGradient(bx - rb / 3, by - rb / 3, rb / 6, bx, by, rb);
+    grad.addColorStop(0, C.panel); grad.addColorStop(1, C.signal);
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(bx, by, rb, 0, 2 * Math.PI); ctx.fill();
+    ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(px, py, 3.5, 0, 2 * Math.PI); ctx.fill();
+
+    // Readings
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillStyle = C.muted; ctx.font = MONO;
+    ctx.fillText('amplitude ≈ ' + (S.swinging ? S.ampRead.toFixed(1) + '°' : '—'), w - 8, 8);
+    ctx.fillText('bob m = ' + (M.m * 1000).toFixed(1) + ' g', w - 8, 24);
+    ctx.fillText('pivot→centre = ' + M.d.toFixed(3) + ' m', w - 8, 40);
+  }
+
+  // ---------- Stopwatch ----------
+  const swNow = () => SW.running ? SW.elapsed + (S.t - SW.start) : SW.elapsed;
+  function swToggle() {
+    if (SW.running) { SW.elapsed += S.t - SW.start; SW.running = false; }
+    else { SW.start = S.t; SW.running = true; }
+    $('swStart').textContent = SW.running ? 'Stop' : 'Start';
+  }
+  function swCount() { if (SW.running) SW.count++; }
+  function swReset() { SW.running = false; SW.elapsed = 0; SW.count = 0; $('swStart').textContent = 'Start'; }
+  $('swStart').addEventListener('click', swToggle);
+  $('swCountBtn').addEventListener('click', swCount);
+  $('swReset').addEventListener('click', swReset);
+  document.addEventListener('keydown', e => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+    if (e.code === 'Space') { e.preventDefault(); swCount(); }
+    else if (e.key === 'Enter') { e.preventDefault(); swToggle(); }
+    else if (e.key === 'r' || e.key === 'R') { swReset(); }
+  });
+
+  function msg(text, kind) { const el = $('recMsg'); el.textContent = text; el.className = 'status ' + (kind || ''); }
+  $('record').addEventListener('click', () => {
+    const t = swNow();
+    if (SW.running) return msg('Stop the stopwatch first.', 'warn');
+    if (t <= 0 || SW.count < 1) return msg('Time some swings first: start the watch and count at least 1 swing.', 'warn');
+    addRow({ L: P.L, D: P.D, mat: P.mat, amp: P.amp, air: P.air, b: P.b, N: SW.count, t: Math.round(t * 100) / 100, src: 'you' });
+    msg(`Recorded: ${SW.count} swings in ${t.toFixed(2)} s, so T = ${(t / SW.count).toFixed(3)} s.`, 'ok');
+    swReset();
+  });
+
+  // ---------- Apparatus controls ----------
+  function syncLabels() {
+    $('massOut').textContent = 'm = ' + (model(P.L, P.D, P.mat).m * 1000).toFixed(1) + ' g';
+  }
+  function catchBob() { S.swinging = false; S.th = 0; S.w = 0; S.trail = []; }
+  // Slider + number box pairs: either one can be used; the number box is clamped to the slider's range.
+  const PAIRS = [
+    { key: 'L', s: 'len', n: 'lenN', dec: 3, reset: true },
+    { key: 'D', s: 'dia', n: 'diaN', dec: 1, reset: true },
+    { key: 'amp', s: 'amp', n: 'ampN', dec: 1, reset: false },
+    { key: 'air', s: 'air', n: 'airN', dec: 0, reset: false },
+    { key: 'b', s: 'fric', n: 'fricN', dec: 3, reset: false }
+  ];
+  PAIRS.forEach(pr => {
+    const sl = $(pr.s), nb = $(pr.n);
+    const apply = (v, from) => {
+      const lo = +sl.min, hi = +sl.max;
+      if (!Number.isFinite(v)) return;
+      v = Math.min(hi, Math.max(lo, v));
+      P[pr.key] = v;
+      if (from !== 's') sl.value = v;
+      if (from !== 'n') nb.value = (+v).toFixed(pr.dec);
+      if (pr.reset) catchBob();
+      syncLabels();
+    };
+    sl.addEventListener('input', () => apply(+sl.value, 's'));
+    nb.addEventListener('change', () => { apply(parseFloat(nb.value), 'x'); });
+    nb.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); apply(parseFloat(nb.value), 'x'); nb.blur(); } });
+  });
+  $('mat').addEventListener('change', e => { P.mat = e.target.value; catchBob(); syncLabels(); });
+  $('release').addEventListener('click', () => {
+    S.th = (P.amp + randn() * 1.0) * DEG; S.w = 0; S.swinging = true; S.maxAbs = 0; S.ampRead = Math.abs(S.th) / DEG; S.trail = [];
+    S.relT = 0; S.peaks = [[0, S.ampRead]];
+  });
+  $('catch').addEventListener('click', catchBob);
+
+  // ---------- Simulated student ----------
+  function simulatedTrial(L, D, mat, amp, N, mistakes, air, b) {
+    const th0 = (amp + randn() * 1.0) * DEG;
+    let Nactual = N;
+    if (mistakes && Math.random() < 0.08) Nactual += Math.random() < 0.5 ? -1 : 1;
+    const tTrue = trueTime(Math.max(1, Nactual), L, D, mat, th0, air, b);
+    const lagStart = Math.max(0.03, 0.15 + 0.05 * randn());
+    const lagStop = Math.max(0.0, 0.12 + 0.06 * randn());
+    const t = Math.round((tTrue - lagStart + lagStop) * 100) / 100;
+    return { L, D, mat, amp, air, b, N, t };
+  }
+  $('quick').addEventListener('click', () => {
+    const N = clampInt($('qN').value, 1, 50, 10);
+    addRow({ ...simulatedTrial(P.L, P.D, P.mat, P.amp, N, $('mistakes').checked, P.air, P.b), src: 'quick' });
+  });
+  const SERIES = {
+    L: [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6],
+    amp: [5, 10, 20, 30, 40, 50, 60, 70, 80],
+    mat: ['wood', 'aluminium', 'steel', 'brass', 'lead'],
+    D: [1, 2, 3, 4, 5, 6],
+    b: [0, 0.05, 0.1, 0.2, 0.3, 0.5],
+    air: [0, 10, 25, 50, 75, 100]
+  };
+  function runSeries(v, rep, src) {
+    const N = clampInt($('qN').value, 1, 50, 10);
+    rows.forEach(r => r.use = false);   // fit only the new series by default
+    SERIES[v].forEach(val => {
+      for (let k = 0; k < rep; k++) {
+        const p = { ...P, [v]: val };
+        rows.push({ id: nextId++, use: true, ...simulatedTrial(p.L, p.D, p.mat, p.amp, N, $('mistakes').checked, p.air, p.b), src });
+      }
+    });
+    save(); renderTable(); drawPlot();
+  }
+  $('series').addEventListener('click', () => {
+    const v = $('seriesVar').value;
+    runSeries(v, clampInt($('qRep').value, 1, 5, 2), 'series ' + ({ L: 'L', amp: 'θ₀', mat: 'material', D: 'D', b: 'b', air: 'air' })[v]);
+    $('sampleNote').hidden = true;
+  });
+  const clampInt = (s, lo, hi, def) => { const n = Math.round(+s); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
+
+  // ---------- Table ----------
+  function addRow(r) { rows.push({ id: nextId++, use: true, ...r }); save(); renderTable(); drawPlot(); }
+  const massG = r => model(r.L, r.D, r.mat).m * 1000;
+  function renderTable() {
+    $('tbody').innerHTML = rows.length ? rows.map(r => `
+      <tr class="${r.use ? '' : 'off'}">
+        <td class="l"><input type="checkbox" data-use="${r.id}" ${r.use ? 'checked' : ''} aria-label="Use trial ${r.id} in the fit"></td>
+        <td>${r.id}</td><td>${r.L.toFixed(3)}</td><td>${r.D.toFixed(1)}</td><td class="l">${MAT_NAME[r.mat]}</td>
+        <td>${massG(r).toFixed(1)}</td><td>${r.amp}</td><td>${r.air}</td><td>${(+r.b).toFixed(3)}</td><td>${r.N}</td><td>${r.t.toFixed(2)}</td>
+        <td>${(r.t / r.N).toFixed(4)}</td><td class="l"><span class="tag">${r.src}</span></td>
+        <td><button type="button" data-del="${r.id}" aria-label="Delete trial ${r.id}">Delete</button></td>
+      </tr>`).join('') : '<tr><td colspan="14" class="l" style="font-family:var(--font-body);color:var(--muted)">No trials yet. Time some swings and record them, or run a quick trial.</td></tr>';
+  }
+  $('tbody').addEventListener('click', e => {
+    const del = e.target.dataset && e.target.dataset.del;
+    if (del) { rows = rows.filter(r => r.id !== +del); save(); renderTable(); drawPlot(); }
+  });
+  $('tbody').addEventListener('change', e => {
+    const id = e.target.dataset && e.target.dataset.use;
+    if (id) { const r = rows.find(r => r.id === +id); if (r) r.use = e.target.checked; save(); renderTable(); drawPlot(); }
+  });
+  let clearArmed = false;
+  $('clearAll').addEventListener('click', () => {
+    if (!clearArmed) { clearArmed = true; $('clearAll').textContent = 'Click again to clear'; setTimeout(() => { clearArmed = false; $('clearAll').textContent = 'Clear all'; }, 3000); return; }
+    rows = []; nextId = 1; clearArmed = false; $('clearAll').textContent = 'Clear all'; $('sampleNote').hidden = true;
+    save(); renderTable(); drawPlot();
+  });
+  $('copyCsv').addEventListener('click', async () => {
+    const head = 'trial,L_m,D_cm,material,m_g,theta0_deg,air_factor,b_per_s,N,t_s,T_s,source,used';
+    const csv = [head, ...rows.map(r => [r.id, r.L.toFixed(3), r.D.toFixed(1), r.mat, massG(r).toFixed(2), r.amp, r.air, r.b, r.N, r.t.toFixed(2), (r.t / r.N).toFixed(5), r.src, r.use ? 1 : 0].join(','))].join('\n');
+    try { await navigator.clipboard.writeText(csv); $('copyCsv').textContent = 'Copied'; }
+    catch { $('copyCsv').textContent = 'Copy blocked'; }
+    setTimeout(() => $('copyCsv').textContent = 'Copy as CSV', 1800);
+  });
+
+  // ---------- Quantities ----------
+  const DT_REACT = 0.1; // assumed stopwatch uncertainty in t (s)
+  const Q = {
+    L:    { label: 'L (m)', f: r => r.L },
+    d:    { label: 'L + D/2 (m)', f: r => r.L + r.D / 200 },
+    sqrtL:{ label: '√L (m^½)', f: r => Math.sqrt(r.L) },
+    lnL:  { label: 'ln L', f: r => Math.log(r.L) },
+    T:    { label: 'T (s)', f: r => r.t / r.N, e: r => DT_REACT / r.N },
+    T2:   { label: 'T² (s²)', f: r => (r.t / r.N) ** 2, e: r => 2 * (r.t / r.N) * DT_REACT / r.N },
+    lnT:  { label: 'ln T', f: r => Math.log(r.t / r.N), e: r => DT_REACT / r.t },
+    t:    { label: 't (s)', f: r => r.t },
+    N:    { label: 'N', f: r => r.N },
+    amp:  { label: 'θ₀ (°)', f: r => r.amp },
+    th2:  { label: 'θ₀² (rad²)', f: r => (r.amp * DEG) ** 2 },
+    m:    { label: 'm (g)', f: r => massG(r) },
+    D:    { label: 'D (cm)', f: r => r.D },
+    b:    { label: 'b (s⁻¹)', f: r => r.b },
+    air:  { label: 'Air drag factor', f: r => r.air }
+  };
+  const yKeys = ['T2', 'T', 'lnT', 't'], xKeys = ['L', 'd', 'sqrtL', 'lnL', 'amp', 'th2', 'm', 'D', 'b', 'air', 'N'];
+  $('ySel').innerHTML = [...yKeys, ...Object.keys(Q).filter(k => !yKeys.includes(k))].map(k => `<option value="${k}">${Q[k].label}</option>`).join('');
+  $('xSel').innerHTML = [...xKeys, ...Object.keys(Q).filter(k => !xKeys.includes(k))].map(k => `<option value="${k}">${Q[k].label}</option>`).join('');
+  $('ySel').value = 'T2'; $('xSel').value = 'L';
+  ['ySel', 'xSel', 'origin'].forEach(id => $(id).addEventListener('change', drawPlot));
+  document.querySelectorAll('[data-xy]').forEach(b => b.addEventListener('click', () => {
+    const [x, y] = b.dataset.xy.split(','); $('xSel').value = x; $('ySel').value = y; $('origin').checked = false; drawPlot();
+  }));
+
+  // ---------- Fit ----------
+  function linfit(xs, ys, origin) {
+    const n = xs.length;
+    if (n < (origin ? 2 : 3)) return null;
+    if (origin) {
+      const sxx = xs.reduce((a, x) => a + x * x, 0); if (sxx === 0) return null;
+      const s = xs.reduce((a, x, i) => a + x * ys[i], 0) / sxx;
+      const res = ys.reduce((a, y, i) => a + (y - s * xs[i]) ** 2, 0);
+      const my = ys.reduce((a, y) => a + y, 0) / n;
+      const tot = ys.reduce((a, y) => a + (y - my) ** 2, 0);
+      return { s, b: 0, se: Math.sqrt(res / (n - 1) / sxx), be: 0, r2: tot ? 1 - res / tot : 1, n };
+    }
+    const mx = xs.reduce((a, x) => a + x, 0) / n, my = ys.reduce((a, y) => a + y, 0) / n;
+    const sxx = xs.reduce((a, x) => a + (x - mx) ** 2, 0); if (sxx === 0) return null;
+    const sxy = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0);
+    const s = sxy / sxx, b = my - s * mx;
+    const res = ys.reduce((a, y, i) => a + (y - s * xs[i] - b) ** 2, 0);
+    const tot = ys.reduce((a, y) => a + (y - my) ** 2, 0);
+    const sig2 = res / (n - 2);
+    return { s, b, se: Math.sqrt(sig2 / sxx), be: Math.sqrt(sig2 * (1 / n + mx * mx / sxx)), r2: tot ? 1 - res / tot : 1, n };
+  }
+  function niceTicks(lo, hi, count) {
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const span = hi - lo, raw = span / count, mag = 10 ** Math.floor(Math.log10(raw));
+    const step = [1, 2, 2.5, 5, 10].map(f => f * mag).find(s => s >= raw);
+    const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step;
+    const ticks = []; for (let v = a; v <= b + step * 1e-6; v += step) ticks.push(+v.toFixed(10));
+    return { lo: a, hi: b, ticks, step };
+  }
+  const fmtTick = (v, step) => { const dec = Math.max(0, -Math.floor(Math.log10(step)) + (step / 10 ** Math.floor(Math.log10(step)) === 2.5 ? 1 : 0)); return v.toFixed(Math.min(dec, 4)); };
+  const sig = (v, e) => { if (!Number.isFinite(e) || e === 0) return v.toPrecision(4); const d = Math.max(0, 1 - Math.floor(Math.log10(Math.abs(e)))); return v.toFixed(Math.min(d, 6)) + ' ± ' + e.toFixed(Math.min(d, 6)); };
+
+  let lastFit = null;
+  function drawPlot() {
+    const xk = $('xSel').value, yk = $('ySel').value, origin = $('origin').checked;
+    const used = rows.filter(r => r.use);
+    const pts = used.map(r => ({ x: Q[xk].f(r), y: Q[yk].f(r), e: Q[yk].e ? Q[yk].e(r) : 0, id: r.id })).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+    const F = linfit(pts.map(p => p.x), pts.map(p => p.y), origin);
+    lastFit = F;
+    const [ctx, w, h] = fit($('plot'));
+    ctx.clearRect(0, 0, w, h);
+    const Lm = 62, Rm = 16, Tm = 12, Bm = 44, pw = w - Lm - Rm, ph = h - Tm - Bm;
+    ctx.font = MONO;
+    if (!pts.length) {
+      ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('No trials to plot yet', w / 2, h / 2);
+      renderFit(null, xk, yk, origin); return;
+    }
+    let xlo = Math.min(...pts.map(p => p.x)), xhi = Math.max(...pts.map(p => p.x));
+    let ylo = Math.min(...pts.map(p => p.y - p.e)), yhi = Math.max(...pts.map(p => p.y + p.e));
+    if (origin) { xlo = Math.min(0, xlo); ylo = Math.min(0, ylo); xhi = Math.max(0, xhi); yhi = Math.max(0, yhi); }
+    const padX = (xhi - xlo || Math.abs(xhi) || 1) * 0.06, padY = (yhi - ylo || Math.abs(yhi) || 1) * 0.08;
+    const tx = niceTicks(xlo - padX, xhi + padX, Math.max(3, Math.floor(pw / 90)));
+    const ty = niceTicks(ylo - padY, yhi + padY, 6);
+    const X = v => Lm + (v - tx.lo) / (tx.hi - tx.lo) * pw, Y = v => Tm + ph - (v - ty.lo) / (ty.hi - ty.lo) * ph;
+
+    ctx.lineWidth = 1; ctx.fillStyle = C.muted;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ty.ticks.forEach(v => { ctx.strokeStyle = Math.abs(v) < ty.step * 1e-6 ? C.rule : C.grid; ctx.beginPath(); ctx.moveTo(Lm, Y(v)); ctx.lineTo(Lm + pw, Y(v)); ctx.stroke(); ctx.fillText(fmtTick(v, ty.step), Lm - 6, Y(v)); });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    tx.ticks.forEach(v => { ctx.strokeStyle = Math.abs(v) < tx.step * 1e-6 ? C.rule : C.grid; ctx.beginPath(); ctx.moveTo(X(v), Tm); ctx.lineTo(X(v), Tm + ph); ctx.stroke(); ctx.fillText(fmtTick(v, tx.step), X(v), Tm + ph + 6); });
+    ctx.fillStyle = C.ink;
+    ctx.fillText(Q[xk].label, Lm + pw / 2, Tm + ph + 24);
+    ctx.save(); ctx.translate(14, Tm + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = 'middle'; ctx.fillText(Q[yk].label, 0, 0); ctx.restore();
+
+    ctx.save(); ctx.beginPath(); ctx.rect(Lm, Tm, pw, ph); ctx.clip();
+    if (F) {
+      ctx.strokeStyle = C.ref; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X(tx.lo), Y(F.s * tx.lo + F.b)); ctx.lineTo(X(tx.hi), Y(F.s * tx.hi + F.b)); ctx.stroke();
+    }
+    pts.forEach(p => {
+      if (p.e > 0 && Math.abs(Y(p.y + p.e) - Y(p.y - p.e)) > 3) {
+        ctx.strokeStyle = C.signal; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(X(p.x), Y(p.y - p.e)); ctx.lineTo(X(p.x), Y(p.y + p.e));
+        ctx.moveTo(X(p.x) - 3, Y(p.y - p.e)); ctx.lineTo(X(p.x) + 3, Y(p.y - p.e));
+        ctx.moveTo(X(p.x) - 3, Y(p.y + p.e)); ctx.lineTo(X(p.x) + 3, Y(p.y + p.e)); ctx.stroke();
+      }
+      ctx.fillStyle = C.panel; ctx.strokeStyle = C.signal; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), 4, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+    });
+    ctx.restore();
+    if (F) {
+      ctx.fillStyle = C.ref; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText(`y = ${F.s.toPrecision(4)}·x ${F.b >= 0 ? '+' : '−'} ${Math.abs(F.b).toPrecision(3)}`, Lm + 8, Tm + 6);
+    }
+    renderFit(F, xk, yk, origin);
+  }
+
+  function renderFit(F, xk, yk, origin) {
+    const tiles = $('fitTiles'), box = $('interp');
+    if (!F) {
+      tiles.innerHTML = '';
+      box.innerHTML = `<p>Need at least ${origin ? 2 : 3} usable trials with different x values to fit a line.</p>`;
+      return;
+    }
+    tiles.innerHTML = [
+      ['Slope', sig(F.s, F.se)],
+      ['Intercept', origin ? '0 (forced)' : sig(F.b, F.be)],
+      ['R²', F.r2.toFixed(5)],
+      ['Points used', F.n]
+    ].map(([k, v]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+    let html = '';
+    if ((xk === 'L' || xk === 'd') && yk === 'T2') {
+      const g = 4 * Math.PI ** 2 / F.s, ge = g * F.se / F.s;
+      html += `<p><strong>g = 4π² / slope = ${sig(g, ge)} m/s²</strong>. The accepted value is 9.81 m/s², a difference of ${((g - 9.81) / 9.81 * 100).toFixed(2)}%.</p>`;
+      if (!origin) {
+        const xInt = -F.b / F.s;
+        html += `<p>The line crosses T² = 0 at x = ${(xInt * 100).toFixed(2)} cm. ${xk === 'L' ? 'A negative value means the pendulum is effectively longer than the string, because the pivot-to-centre distance is L + D/2. Compare with your bob radius.' : 'With L + D/2 on the x-axis, this should be close to 0.'}</p>`;
+      }
+    } else if (xk === 'sqrtL' && yk === 'T') {
+      const g = 4 * Math.PI ** 2 / F.s ** 2, ge = g * 2 * F.se / F.s;
+      html += `<p><strong>g = (2π / slope)² = ${sig(g, ge)} m/s²</strong>. Theory gives T = (2π/√g)·√L, so the line should pass close to the origin.</p>`;
+    } else if (xk === 'lnL' && yk === 'lnT') {
+      html += `<p><strong>Power law T ∝ L<sup>n</sup>, with n = ${sig(F.s, F.se)}</strong>. Theory gives n = 0.5. Using e<sup>intercept</sup> = 2π/√g gives g ≈ ${(4 * Math.PI ** 2 / Math.exp(2 * F.b)).toFixed(3)} m/s².</p>`;
+    } else if (xk === 'th2' && yk === 'T') {
+      const ratio = F.s / F.b, re = Math.abs(ratio) * Math.hypot(F.se / F.s, F.be / F.b);
+      html += `<p><strong>Amplitude effect.</strong> The intercept T₀ = ${sig(F.b, F.be)} s is the small-swing period. Slope ÷ intercept = ${sig(ratio, re)}, and the series T ≈ T₀(1 + θ₀²/16) predicts 0.0625.</p><p>At large θ₀, higher-order terms push the points above the line, which is the elliptic-integral behaviour. Damping also lowers the amplitude during the timing, which makes the effect slightly smaller.</p>`;
+    } else if (yk === 'T' && ['m', 'D', 'amp', 'N', 'b', 'air'].includes(xk)) {
+      const mean = rows.filter(r => r.use).reduce((a, r) => a + r.t / r.N, 0) / F.n;
+      const span = F.s * (Math.max(...rows.filter(r => r.use).map(r => Q[xk].f(r))) - Math.min(...rows.filter(r => r.use).map(r => Q[xk].f(r))));
+      const tStat = Math.abs(F.s / F.se);
+      html += `<p>Across the range of ${Q[xk].label}, T changes by ${(span * 1000).toFixed(1)} ms, which is ${(span / mean * 100).toFixed(2)}% of the mean period. The slope is ${tStat.toFixed(1)} standard errors from zero. ${tStat < 2 ? 'This is consistent with <strong>no dependence</strong>.' : 'This is a measurable dependence. Check whether the bob size, which changes L + D/2, or air drag explains it.'}</p>`;
+    } else {
+      html += `<p>Fitted y = (${sig(F.s, F.se)})·x ${origin ? '' : '+ (' + sig(F.b, F.be) + ')'}. To get g, try T² against L or ln T against ln L.</p>`;
+    }
+    html += `<p class="note">Error bars assume ±${DT_REACT} s on each stopwatch reading (reaction time), shared over N swings. The slope uncertainty comes from the scatter of the points.</p>`;
+    box.innerHTML = html;
+  }
+
+  // ---------- Amplitude decay chart ----------
+  let decayTick = 0;
+  function drawDecay() {
+    const [ctx, w, h] = fit($('decay'));
+    ctx.clearRect(0, 0, w, h);
+    const Lm = 44, Rm = 22, Tm = 8, Bm = 22, pw = w - Lm - Rm, ph = h - Tm - Bm;
+    const pk = S.peaks;
+    const tMax = Math.max(30, Math.ceil(((pk.length ? pk[pk.length - 1][0] : 0) + 1) / 10) * 10);
+    const aMax = Math.max(5, Math.ceil(((pk.length ? pk[0][1] : P.amp) + 1) / 5) * 5);
+    const X = t => Lm + t / tMax * pw, Y = a => Tm + ph - a / aMax * ph;
+    ctx.font = MONO; ctx.fillStyle = C.muted; ctx.lineWidth = 1;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    [0, aMax / 2, aMax].forEach(a => { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(Lm, Y(a)); ctx.lineTo(Lm + pw, Y(a)); ctx.stroke(); ctx.fillText(a + '°', Lm - 6, Y(a)); });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const st = tMax <= 60 ? 10 : tMax <= 150 ? 30 : 60;
+    for (let t = 0; t <= tMax; t += st) { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(X(t), Tm); ctx.lineTo(X(t), Tm + ph); ctx.stroke(); ctx.fillText(t + ' s', X(t), Tm + ph + 5); }
+    if (pk.length < 2) {
+      ctx.fillStyle = C.muted; ctx.textBaseline = 'middle'; ctx.fillText(S.swinging ? 'Measuring…' : 'Release the bob to see the swing die away', Lm + pw / 2, Tm + ph / 2);
+      $('decayInfo').textContent = ''; return;
+    }
+    ctx.strokeStyle = C.signal; ctx.lineWidth = 2; ctx.beginPath();
+    pk.forEach(([t, a], i) => i ? ctx.lineTo(X(t), Y(a)) : ctx.moveTo(X(t), Y(a))); ctx.stroke();
+    const a0 = pk[0][1], [tl, al] = pk[pk.length - 1];
+    if (tl > 2 && al < a0) {
+      const half = tl * Math.log(2) / Math.log(a0 / al);
+      $('decayInfo').textContent = `${a0.toFixed(1)}° → ${al.toFixed(1)}° in ${tl.toFixed(0)} s (about ${half < 1000 ? half.toFixed(0) + ' s to halve' : 'very slow decay'})`;
+    } else $('decayInfo').textContent = 'No measurable decay';
+  }
+
+  // ---------- Main loop (simulation clock drives the stopwatch, so dropped frames do not bias timing) ----------
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (S.swinging) {
+      const M = model(P.L, P.D, P.mat), acc = makeAcc(M, P.air, P.b);
+      const n = Math.max(1, Math.ceil(dt / 0.0005));
+      let prev = S.w;
+      for (let i = 0; i < n; i++) {
+        [S.th, S.w] = rk4(S.th, S.w, dt / n, acc);
+        S.relT += dt / n;
+        if ((prev > 0 && S.w <= 0) || (prev < 0 && S.w >= 0)) { // turning point
+          S.ampRead = Math.abs(S.th) / DEG;
+          S.peaks.push([S.relT, S.ampRead]); if (S.peaks.length > 400) S.peaks.shift();
+        }
+        prev = S.w;
+      }
+    }
+    S.t += dt;
+    $('swTime').textContent = swNow().toFixed(2);
+    $('swCount').textContent = SW.count;
+    drawApparatus();
+    if (++decayTick % 10 === 0) drawDecay();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Init ----------
+  syncLabels();
+  if (!load()) {
+    runSeries('L', 1, 'sample');
+    rows.forEach(r => r.src = 'sample');
+    save(); $('sampleNote').hidden = false;
+  } else if (rows.length && rows.every(r => r.src === 'sample')) $('sampleNote').hidden = false;
+  renderTable(); drawPlot(); drawDecay();
+  window.addEventListener('resize', () => { drawPlot(); drawDecay(); });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

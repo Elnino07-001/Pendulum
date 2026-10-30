@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pendulum Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root { --paper:#f3f5f7; --panel:#fff; --ink:#17212b; --muted:#5b6874; --rule:#c9d2da; --signal:#d9480f; color-scheme: light; }
+@media (prefers-color-scheme: dark) { :root { --paper:#11161c; --panel:#182029; --ink:#e4e9ee; --muted:#93a1ae; --rule:#2f3b48; --signal:#ff8a4c; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 "IBM Plex Sans", system-ui, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 48px 20px; display: grid; gap: 24px; }
+h1 { font: 600 36px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; margin: 0; }
+p { margin: 0; color: var(--muted); max-width: 65ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+a.card { display: grid; gap: 8px; padding: 20px; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; color: inherit; text-decoration: none; }
+a.card:hover, a.card:focus-visible { border-color: var(--signal); outline: none; }
+a.card h2 { margin: 0; font: 600 21px "IBM Plex Sans Condensed", "Arial Narrow", sans-serif; color: var(--signal); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pendulum Lab</h1>
+  <p>Two simulations of the simple pendulum. The first compares the exact nonlinear motion with the period formula T = 4√(L/g)·K(sin(θ₀/2)). The second is a virtual lab bench for timing swings by hand and analysing the data.</p>
+  <div class="grid">
+    <a class="card" href="lab.html">
+      <h2>Ideal pendulum &amp; elliptic integral</h2>
+      <p>RK4 simulation of θ̈ = −(g/L) sin θ beside the small-angle model, with live period measurement and an amplitude sweep against 2K(k)/π.</p>
+    </a>
+    <a class="card" href="experiment.html">
+      <h2>Experiment Bench</h2>
+      <p>A non-ideal pendulum with a finite bob, adjustable air drag and friction, and a stopwatch you operate yourself. Record trials and fit T² vs L, ln T vs ln L, T vs θ₀², and more.</p>
+    </a>
+  </div>
+</main>
+</body>
+</html>
