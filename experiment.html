@@ -40,6 +40,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+nav a { color: var(--ref); }
 html, body { margin: 0; }
 body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
 .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 48px; display: grid; gap: 20px; }
@@ -68,7 +69,7 @@ input[type="number"] { width: 72px; font-family: var(--font-mono); }
 .pair { display: grid; grid-template-columns: 1fr 88px; gap: 10px; align-items: center; }
 .pair input[type="number"] { width: 100%; text-align: right; }
 .ctl .unit { font-weight: 400; color: var(--muted); }
-#decay { height: 150px; }
+#decay { height: 200px; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 button {
   font: 500 14px var(--font-body); color: var(--ink); background: var(--paper);
@@ -124,15 +125,16 @@ td button { padding: 2px 8px; font-size: 12px; }
 <div class="wrap">
   <header>
     <h1>Pendulum Experiment Bench</h1>
-    <p class="lede">A virtual lab pendulum with the imperfections of a real one. The bob is a sphere of real size, so the pendulum is longer than the string. Air drag and pivot friction make the swing die away (you can set how strongly), your release angle is off by about ±1°, and the stopwatch is timed by your own clicks. Time the swings, record each trial, then plot any two quantities and fit a line.</p>
+    <p class="lede">A virtual lab pendulum with the imperfections of a real one. The bob is a sphere of real size, so the pendulum is longer than the string. Air drag and pivot friction make the swing die away (you can set how strongly), the simulated student's release angle is off by about ±1°, and the stopwatch is timed by your own clicks. Time the swings, record each trial, then plot any two quantities and fit a line.</p>
     <nav class="note"><a href="index.html">Home</a> · <a href="lab.html">← Ideal pendulum &amp; elliptic integral</a></nav>
   </header>
 
   <div class="bench">
     <section class="card" aria-label="Apparatus">
       <canvas id="apparatus" aria-label="Pendulum with protractor, ruler and timing mark"></canvas>
-      <div class="head-row"><h3>Amplitude since release</h3><span id="decayInfo" class="note"></span></div>
-      <canvas id="decay" aria-label="Amplitude against time since release"></canvas>
+      <div class="head-row"><h3>Angle θ against time</h3><span id="decayInfo" class="note"></span></div>
+      <canvas id="decay" aria-label="Angle theta against time since release, with amplitude envelope"></canvas>
+      <div class="row note"><span><span style="display:inline-block;width:16px;height:3px;background:var(--signal);vertical-align:middle"></span> θ(t)</span><span><span style="display:inline-block;width:16px;height:0;border-top:2px dashed var(--muted);vertical-align:middle"></span> amplitude envelope (turning points)</span></div>
       <p class="note">The dashed line under the pivot is the <strong>timing mark</strong>. Start and stop the watch as the bob crosses it, always moving in the same direction. The current amplitude in the corner comes from the protractor.</p>
     </section>
 
@@ -144,8 +146,8 @@ td button { padding: 2px 8px; font-size: 12px; }
           <div class="pair"><input id="len" type="range" min="0.1" max="2" step="0.005" value="1" aria-label="String length slider"><input id="lenN" type="number" min="0.1" max="2" step="0.001" value="1.000"></div>
         </div>
         <div class="ctl">
-          <label for="diaN">Bob diameter D <span class="unit">(cm, 1–6)</span></label>
-          <div class="pair"><input id="dia" type="range" min="1" max="6" step="0.1" value="2.5" aria-label="Bob diameter slider"><input id="diaN" type="number" min="1" max="6" step="0.1" value="2.5"></div>
+          <label for="diaN">Bob diameter D <span class="unit">(cm, 1–20)</span></label>
+          <div class="pair"><input id="dia" type="range" min="1" max="20" step="0.1" value="2.5" aria-label="Bob diameter slider"><input id="diaN" type="number" min="1" max="20" step="0.1" value="2.5"></div>
         </div>
         <div class="ctl">
           <label for="mat">Bob material <output id="massOut"></output></label>
@@ -172,7 +174,7 @@ td button { padding: 2px 8px; font-size: 12px; }
         <p class="note">Damping: air drag ∝ v² (stronger for light bobs) plus linear friction b·θ̇. Set both to 0 for an ideal pendulum.</p>
         <div class="row">
           <button id="release" class="primary" type="button">Release bob</button>
-          <button id="catch" type="button">Stop the bob</button>
+          <button id="catch" type="button">Stop and hold at θ₀</button>
         </div>
       </section>
 
@@ -216,7 +218,7 @@ td button { padding: 2px 8px; font-size: 12px; }
           <option value="L">String length L (0.2–1.6 m)</option>
           <option value="amp">Release angle θ₀ (5–80°)</option>
           <option value="mat">Bob material (5 kinds)</option>
-          <option value="D">Bob diameter D (1–6 cm)</option>
+          <option value="D">Bob diameter D (2–20 cm)</option>
           <option value="b">Pivot friction b (0–0.5 s⁻¹)</option>
           <option value="air">Air drag factor (0–100×)</option>
         </select>
@@ -302,7 +304,7 @@ td button { padding: 2px 8px; font-size: 12px; }
 
   // ---------- State ----------
   const P = { L: 1.0, D: 2.5, mat: 'steel', amp: 10, air: 20, b: 0.05 };
-  const S = { t: 0, th: 0, w: 0, swinging: false, maxAbs: 0, ampRead: 0, trail: [], relT: 0, peaks: [] };
+  const S = { t: 0, th: 10 * DEG, w: 0, swinging: false, hist: [], maxAbs: 0, ampRead: 0, trail: [], relT: 0, peaks: [] };
   const SW = { running: false, start: 0, elapsed: 0, count: 0 };
   let rows = [];
   let nextId = 1;
@@ -402,8 +404,8 @@ td button { padding: 2px 8px; font-size: 12px; }
 
     // Readings
     ctx.textAlign = 'right'; ctx.textBaseline = 'top'; ctx.fillStyle = C.muted; ctx.font = MONO;
-    ctx.fillText('amplitude ≈ ' + (S.swinging ? S.ampRead.toFixed(1) + '°' : '—'), w - 8, 8);
-    ctx.fillText('bob m = ' + (M.m * 1000).toFixed(1) + ' g', w - 8, 24);
+    ctx.fillText(S.swinging ? 'amplitude ≈ ' + S.ampRead.toFixed(1) + '°' : 'held at θ₀ = ' + P.amp + '°', w - 8, 8);
+    ctx.fillText('bob m = ' + fmtMass(M.m), w - 8, 24);
     ctx.fillText('pivot→centre = ' + M.d.toFixed(3) + ' m', w - 8, 40);
   }
 
@@ -438,10 +440,12 @@ td button { padding: 2px 8px; font-size: 12px; }
   });
 
   // ---------- Apparatus controls ----------
+  const fmtMass = kg => kg >= 1 ? kg.toFixed(2) + ' kg' : (kg * 1000).toFixed(1) + ' g';
   function syncLabels() {
-    $('massOut').textContent = 'm = ' + (model(P.L, P.D, P.mat).m * 1000).toFixed(1) + ' g';
+    $('massOut').textContent = 'm = ' + fmtMass(model(P.L, P.D, P.mat).m);
   }
-  function catchBob() { S.swinging = false; S.th = 0; S.w = 0; S.trail = []; }
+  // Before release the bob is held still at the chosen release angle θ₀.
+  function catchBob() { S.swinging = false; S.th = P.amp * DEG; S.w = 0; S.trail = []; }
   // Slider + number box pairs: either one can be used; the number box is clamped to the slider's range.
   const PAIRS = [
     { key: 'L', s: 'len', n: 'lenN', dec: 3, reset: true },
@@ -459,7 +463,7 @@ td button { padding: 2px 8px; font-size: 12px; }
       P[pr.key] = v;
       if (from !== 's') sl.value = v;
       if (from !== 'n') nb.value = (+v).toFixed(pr.dec);
-      if (pr.reset) catchBob();
+      if (pr.reset || (pr.key === 'amp' && !S.swinging)) catchBob();
       syncLabels();
     };
     sl.addEventListener('input', () => apply(+sl.value, 's'));
@@ -468,8 +472,8 @@ td button { padding: 2px 8px; font-size: 12px; }
   });
   $('mat').addEventListener('change', e => { P.mat = e.target.value; catchBob(); syncLabels(); });
   $('release').addEventListener('click', () => {
-    S.th = (P.amp + randn() * 1.0) * DEG; S.w = 0; S.swinging = true; S.maxAbs = 0; S.ampRead = Math.abs(S.th) / DEG; S.trail = [];
-    S.relT = 0; S.peaks = [[0, S.ampRead]];
+    S.th = P.amp * DEG; S.w = 0; S.swinging = true; S.maxAbs = 0; S.ampRead = P.amp; S.trail = [];
+    S.relT = 0; S.peaks = [[0, S.ampRead]]; S.hist = [[0, P.amp]];
   });
   $('catch').addEventListener('click', catchBob);
 
@@ -492,7 +496,7 @@ td button { padding: 2px 8px; font-size: 12px; }
     L: [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6],
     amp: [5, 10, 20, 30, 40, 50, 60, 70, 80],
     mat: ['wood', 'aluminium', 'steel', 'brass', 'lead'],
-    D: [1, 2, 3, 4, 5, 6],
+    D: [2, 5, 8, 11, 14, 17, 20],
     b: [0, 0.05, 0.1, 0.2, 0.3, 0.5],
     air: [0, 10, 25, 50, 75, 100]
   };
@@ -707,33 +711,48 @@ td button { padding: 2px 8px; font-size: 12px; }
     box.innerHTML = html;
   }
 
-  // ---------- Amplitude decay chart ----------
-  let decayTick = 0;
+  // ---------- θ(t) chart with amplitude envelope ----------
+  const TWIN = 30; // seconds shown
   function drawDecay() {
     const [ctx, w, h] = fit($('decay'));
     ctx.clearRect(0, 0, w, h);
-    const Lm = 44, Rm = 22, Tm = 8, Bm = 22, pw = w - Lm - Rm, ph = h - Tm - Bm;
-    const pk = S.peaks;
-    const tMax = Math.max(30, Math.ceil(((pk.length ? pk[pk.length - 1][0] : 0) + 1) / 10) * 10);
-    const aMax = Math.max(5, Math.ceil(((pk.length ? pk[0][1] : P.amp) + 1) / 5) * 5);
-    const X = t => Lm + t / tMax * pw, Y = a => Tm + ph - a / aMax * ph;
+    const Lm = 50, Rm = 22, Tm = 8, Bm = 22, pw = w - Lm - Rm, ph = h - Tm - Bm;
+    const t1 = Math.max(TWIN, S.relT), t0 = t1 - TWIN;
+    const a0 = S.swinging && S.peaks.length ? S.peaks[0][1] : P.amp;
+    const aMax = Math.max(10, Math.ceil((a0 + 0.5) / 10) * 10);
+    const X = t => Lm + (t - t0) / TWIN * pw, Y = a => Tm + ph / 2 - a / aMax * ph / 2;
     ctx.font = MONO; ctx.fillStyle = C.muted; ctx.lineWidth = 1;
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    [0, aMax / 2, aMax].forEach(a => { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(Lm, Y(a)); ctx.lineTo(Lm + pw, Y(a)); ctx.stroke(); ctx.fillText(a + '°', Lm - 6, Y(a)); });
+    [-aMax, -aMax / 2, 0, aMax / 2, aMax].forEach(a => { ctx.strokeStyle = a === 0 ? C.rule : C.grid; ctx.beginPath(); ctx.moveTo(Lm, Y(a)); ctx.lineTo(Lm + pw, Y(a)); ctx.stroke(); ctx.fillText(a + '°', Lm - 6, Y(a)); });
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    const st = tMax <= 60 ? 10 : tMax <= 150 ? 30 : 60;
-    for (let t = 0; t <= tMax; t += st) { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(X(t), Tm); ctx.lineTo(X(t), Tm + ph); ctx.stroke(); ctx.fillText(t + ' s', X(t), Tm + ph + 5); }
-    if (pk.length < 2) {
-      ctx.fillStyle = C.muted; ctx.textBaseline = 'middle'; ctx.fillText(S.swinging ? 'Measuring…' : 'Release the bob to see the swing die away', Lm + pw / 2, Tm + ph / 2);
+    for (let t = Math.ceil(t0 / 5) * 5; t <= t1 + 1e-9; t += 5) { ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(X(t), Tm); ctx.lineTo(X(t), Tm + ph); ctx.stroke(); ctx.fillText(t + ' s', X(t), Tm + ph + 5); }
+    if (!S.swinging) {
+      // Held at θ₀: show the starting point
+      ctx.fillStyle = C.signal; ctx.beginPath(); ctx.arc(X(0), Y(P.amp), 4, 0, 2 * Math.PI); ctx.fill();
+      ctx.fillStyle = C.muted; ctx.textBaseline = 'middle';
+      ctx.fillText(`Bob held at θ₀ = ${P.amp}°. Press “Release bob” to start.`, Lm + pw / 2, Tm + ph / 2 + 18);
       $('decayInfo').textContent = ''; return;
     }
+    ctx.save(); ctx.beginPath(); ctx.rect(Lm, Tm, pw, ph); ctx.clip();
+    // Envelope through turning points
+    const pk = S.peaks.filter(p => p[0] >= t0 - 3);
+    if (pk.length > 1) {
+      ctx.setLineDash([5, 4]); ctx.strokeStyle = C.muted; ctx.lineWidth = 1.5;
+      [1, -1].forEach(sg => { ctx.beginPath(); pk.forEach(([t, a], i) => i ? ctx.lineTo(X(t), Y(sg * a)) : ctx.moveTo(X(t), Y(sg * a))); ctx.stroke(); });
+      ctx.setLineDash([]);
+    }
     ctx.strokeStyle = C.signal; ctx.lineWidth = 2; ctx.beginPath();
-    pk.forEach(([t, a], i) => i ? ctx.lineTo(X(t), Y(a)) : ctx.moveTo(X(t), Y(a))); ctx.stroke();
-    const a0 = pk[0][1], [tl, al] = pk[pk.length - 1];
+    let started = false;
+    S.hist.forEach(([t, a]) => { if (t < t0 - 0.1) return; started ? ctx.lineTo(X(t), Y(a)) : (ctx.moveTo(X(t), Y(a)), started = true); });
+    ctx.stroke();
+    ctx.restore();
+    const last = S.hist[S.hist.length - 1];
+    ctx.fillStyle = C.signal; ctx.beginPath(); ctx.arc(X(last[0]), Y(last[1]), 3.5, 0, 2 * Math.PI); ctx.fill();
+    const al = S.peaks[S.peaks.length - 1][1], tl = S.peaks[S.peaks.length - 1][0];
     if (tl > 2 && al < a0) {
       const half = tl * Math.log(2) / Math.log(a0 / al);
-      $('decayInfo').textContent = `${a0.toFixed(1)}° → ${al.toFixed(1)}° in ${tl.toFixed(0)} s (about ${half < 1000 ? half.toFixed(0) + ' s to halve' : 'very slow decay'})`;
-    } else $('decayInfo').textContent = 'No measurable decay';
+      $('decayInfo').textContent = `Amplitude ${a0.toFixed(1)}° → ${al.toFixed(1)}° in ${tl.toFixed(0)} s (halves in about ${half < 1000 ? half.toFixed(0) + ' s' : 'a very long time'})`;
+    } else $('decayInfo').textContent = 't = ' + S.relT.toFixed(1) + ' s since release';
   }
 
   // ---------- Main loop (simulation clock drives the stopwatch, so dropped frames do not bias timing) ----------
@@ -753,12 +772,14 @@ td button { padding: 2px 8px; font-size: 12px; }
         }
         prev = S.w;
       }
+      S.hist.push([S.relT, S.th / DEG]);
+      while (S.hist.length && S.hist[0][0] < S.relT - TWIN - 2) S.hist.shift();
     }
     S.t += dt;
     $('swTime').textContent = swNow().toFixed(2);
     $('swCount').textContent = SW.count;
     drawApparatus();
-    if (++decayTick % 10 === 0) drawDecay();
+    drawDecay();
     requestAnimationFrame(frame);
   }
 
